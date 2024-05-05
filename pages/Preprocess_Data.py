@@ -4,7 +4,7 @@ import string
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
-#from helper_functions import fetch_dataset, clean_data, display_review_keyword
+import spacy
 
 st.markdown('# Explore & Preprocess Dataset')
 
@@ -51,6 +51,16 @@ def remove_punctuation(df, features):
         except: # python 3.x
             translator = text.maketrans('', '', string.punctuation)
             text = text.translate(translator)
+        emoticons_pos = [":)", ":-)", ":p", ":-p", ":P", ":-P", ":D",":-D", ":]", ":-]", ";)", ";-)",
+                         ";p", ";-p", ";P", ";-P", ";D", ";-D", ";]", ";-]", "=)", "=-)", "<3"]
+        emoticons_neg = [":o", ":-o", ":O", ":-O", ":(", ":-(", ":c", ":-c", ":C", ":-C", ":[", ":-[",
+                         ":/", ":-/", ":\\", ":-\\", ":n", ":-n", ":u", ":-u", "=(", "=-(", ":$", ":-$"]
+
+        for e in emoticons_pos:
+            text = text.replace(e, "happyemoticon")
+
+        for e in emoticons_neg:
+            text = text.replace(e, "sademoticon")
         return text
     
     for i in features:
@@ -266,12 +276,12 @@ if df is not None:
                 # Store new features in st.session_state
                 st.session_state['data'] = df
             else:
-                df = pd.concat([df, word_count_df], axis=1)
+                df = pd.concat([df, tfidf_word_count_df], axis=1)
                 # Store new features in st.session_state
                 st.session_state['data'] = df
 
     # Display dataset
-    st.dataframe(df)
+    #st.dataframe(df)
     
     # Save dataset in session_state
     st.session_state['data'] = df
