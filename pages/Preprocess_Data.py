@@ -4,285 +4,184 @@ import string
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
-import spacy
+from sklearn.feature_extraction.text import TfidfVectorizer
+import string
+import plotly.express as px
 
 st.markdown('# Explore & Preprocess Dataset')
 
-def fetch_dataset():
-    # Check stored data
-    df = None
-    data = None
-    if 'data' in st.session_state:
-        df = st.session_state['data']
-    else:
-        data = st.file_uploader(
-            'Upload a Dataset', type=['csv', 'txt'])
-        data = "/Users/divyamadala/Desktop/PAML/medical-drug-review/datasets/webmd.csv"
-        if (data):
-            df = pd.read_csv(data)
-    if df is not None:
-        st.session_state['data'] = df
-    return df
+webmddf = pd.read_csv("datasets/webmd.csv")
+st.session_state['data'] = webmddf
 
-def clean_data(df):
-    data_cleaned = False
-    # Drop irrelevant columns
-    st.write('df.columns: {}'.format(df.columns))
-    relevant_cols = ["Drug", "Satisfaction", "Reviews"]
-    df = df.loc[:, relevant_cols]
+# def plot_scatterplot(df, feature1, feature2):
+#     fig = px.scatter(data_frame=df, x=feature1, y=feature2,
+#                       range_x=[df[feature1].min(), df[feature1].max()],
+#                       range_y=[df[feature2].min(), df[feature2].max()])
+#     return fig
 
-    # Drop Nana
-    df.dropna(subset=["Drug", "Satisfaction", "Reviews"], inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    #df.head()
-    data_cleaned = True
+#st.write(plot_scatterplot(webmddf, 'Satisfaction', 'Drug'))
 
-    # Store new features in st.session_state
-    st.session_state['data'] = df
-    return df, data_cleaned
+#cleaning dataset
+relevant_cols=['Reviews','Satisfaction','DrugId']
+webmddf = webmddf.loc[:, relevant_cols]
 
-df = None
-df = fetch_dataset()
+webmddf.dropna(subset=['Reviews','Satisfaction','DrugId'], inplace=True)
+webmddf.reset_index(drop=True, inplace=True)
 
-def remove_punctuation(df, features):
-    def remove_punctuation_2(text):
-        try: # python 2.x
-            text = text.translate(None, string.punctuation) 
-        except: # python 3.x
-            translator = text.maketrans('', '', string.punctuation)
-            text = text.translate(translator)
-        emoticons_pos = [":)", ":-)", ":p", ":-p", ":P", ":-P", ":D",":-D", ":]", ":-]", ";)", ";-)",
-                         ";p", ";-p", ";P", ";-P", ";D", ";-D", ";]", ";-]", "=)", "=-)", "<3"]
-        emoticons_neg = [":o", ":-o", ":O", ":-O", ":(", ":-(", ":c", ":-c", ":C", ":-C", ":[", ":-[",
-                         ":/", ":-/", ":\\", ":-\\", ":n", ":-n", ":u", ":-u", "=(", "=-(", ":$", ":-$"]
+st.markdown("### Before cleaning the dataset")
+st.write(webmddf.head())
 
-        for e in emoticons_pos:
-            text = text.replace(e, "happyemoticon")
+def remove_punctuation(text):
+    try: # python 2.x
+        text = text.translate(None, string.punctuation) 
+    except: # python 3.x
+        translator = text.maketrans('', '', string.punctuation)
+        text = text.translate(translator)
+    return text
 
-        for e in emoticons_neg:
-            text = text.replace(e, "sademoticon")
-        return text
-    
-    for i in features:
-        df[i] = df[i].apply(remove_punctuation_2)
-    # Confirmation statement
-    st.write('Punctuation was removed from {}'.format(features))
-    return df
+webmddf['Reviews'] = webmddf['Reviews'].apply(remove_punctuation)
+st.markdown("### After cleaning the dataset")
+st.session_state['data'] = webmddf
+st.write(webmddf.head())
 
-def display_review_keyword(df, keyword, n_reviews=5):
-    keyword_df = df['Reviews'].str.contains(keyword)
-    filtered_df = df[keyword_df]#.head(n_reviews)
+# Plot Histogram
+hist = px.histogram(webmddf, "Satisfaction", range_x=[1,5])
+st.markdown("### Visualize features")
+st.write(hist)
 
-    return filtered_df
+#stop words
+stop_words_list = open("datasets/stopwords.txt","r")
+stop_words_list = stop_words_list.readlines()
+stop_words=[]
+for word in stop_words_list:
+    stop_words.append(word.split('\n')[0])
 
-def word_count_encoder(df, feature, analyzer='word', ngram_range=(1, 1), stop_words=None):
-    # Create CountVectorizer object using analyzer, ngram_range, and stop_words
+# feature encoding selection
+st.markdown("### Select features")
+feature_encoding = st.selectbox(
+            'Select feature encoding word count',
+            ["word count", "tfidf word count"])
+st.session_state['feature_encoding'] = feature_encoding
+
+
+# balance labels selection
+balance_labels=st.selectbox(
+            'Select if you to want to balance labels',
+            ["False", "True"])
+st.session_state['balance_labels'] = balance_labels
+
+
+# analyzer selection
+analyzer = st.selectbox(
+            'Select analyzer',
+            ["word", "char", "char_wb"])
+st.session_state['analyzer'] = analyzer
+
+# ngram range selection
+ngram_range_selection = st.selectbox(
+            'Select ngram range',
+            ["unigram", "bigram", "unigram & bigram"])
+if ngram_range_selection == "unigram":
+    ngram_range=(1, 1)
+if ngram_range_selection == "bigram":
+    ngram_range=(2, 2)
+if ngram_range_selection == "unigram & bigram":
+    ngram_range=(1, 2) #unigram & bigram - (1,2)
+
+st.session_state['ngram_range'] = ngram_range
+
+# stop words
+# stop_words = st.selectbox(
+#             'Select stop words',
+#             ["stop_words", "english"])
+# if stop_words == "english":
+#     st.session_state['stop_words'] = stop_words
+# else:
+#     st.session_state['stop_words'] = stop_words_list
+stop_words = "english"
+st.session_state['stop_words'] = stop_words
+
+
+def word_count(df, analyzer, ngram_range, stop_words):
     count_vect = CountVectorizer(analyzer=analyzer, ngram_range=ngram_range, stop_words=stop_words)
-    # Add code here
-    X_train_counts = count_vect.fit_transform(df[feature])
+    X_train_counts = count_vect.fit_transform(df['Reviews'])
+
+    wc_feature_names = np.array(count_vect.get_feature_names_out())
+    #print('wc_feature_names: {}'.format(wc_feature_names))
 
     word_count_df = pd.DataFrame(X_train_counts.toarray())
     word_count_df = word_count_df.add_prefix('word_count_')
-    df = pd.concat([df, word_count_df], axis=1)
-    # Store new features in st.session_state
-    st.session_state['data'] = df
-    print(X_train_counts.shape)
-    return df, count_vect, word_count_df
 
-def tf_idf_encoder(df, feature, analyzer='word', ngram_range=(1, 1), stop_words=None, norm=None):
-    count_vect=None
-    tfidf_transformer=None
-    tfidf_df=None
-    # Create CountVectorizer object using analyzer, ngram_range, and stop_words
-    # Add code here
+    df = pd.concat([df, word_count_df], axis=1)
+    #st.session_state['data'] = webmddf
+    return df, wc_feature_names, word_count_df
+
+def tfidf_word_count(df, analyzer, ngram_range, stop_words):
+    tfidf_transformer = TfidfTransformer()
     count_vect = CountVectorizer(analyzer=analyzer, ngram_range=ngram_range, stop_words=stop_words)
-    # Create TfidfTransformer object
-    # Add code here
-    tfidf_transformer = TfidfTransformer(norm=norm)
-    X_train_counts = count_vect.fit_transform(df[feature])
+
+    X_train_counts = count_vect.fit_transform(df['Reviews'])
     wc_feature_names = np.array(count_vect.get_feature_names_out())
-    print('wc_feature_names: {}'.format(wc_feature_names))
+    #print('wc_feature_names: {}'.format(wc_feature_names))
 
     X_train_tfidf = tfidf_transformer.fit_transform(X_train_counts)
+    word_count_df = pd.DataFrame(X_train_tfidf.toarray())
+    word_count_df = word_count_df.add_prefix('tf_idf_word_count_')
+    df = pd.concat([df, word_count_df], axis=1)
+    #st.session_state['data'] = webmddf
+    return df, wc_feature_names, word_count_df
+
+encoder = None
+if (st.button('Run encoder')):
+    if feature_encoding == "word count":
+        encoder = word_count(webmddf, analyzer, ngram_range, list(stop_words))
+    else:
+        encoder = tfidf_word_count(webmddf, analyzer, ngram_range, list(stop_words))
+    webmddf = encoder[0]
+    st.session_state['data'] = webmddf
+    st.write(encoder[0])
+
+if encoder is not None:
+    # tfidf = TfidfVectorizer(analyzer=analyzer, ngram_range=ngram_range, stop_words=stop_words)
+
+    # X_train_tfidf = tfidf.fit_transform(webmddf['Reviews'])
+    # tfidf_df = pd.DataFrame(X_train_tfidf.toarray())
+    # # encoder[2] is word_count_df
+    # tfidf_df = encoder[2].add_prefix('tfidf_word_count_')
+    # tfidf_feature_names = np.array(tfidf.get_feature_names_out())
+    # products = pd.concat([webmddf, tfidf_df], axis=1)
+
+    # new_doc = webmddf['Reviews'][:2].to_numpy()
+    # responses = tfidf.transform(new_doc)
+
+    tfidf = TfidfVectorizer(analyzer=analyzer, ngram_range=ngram_range, stop_words=list(stop_words))
+
+    X_train_tfidf = tfidf.fit_transform(webmddf['Reviews'])
     tfidf_df = pd.DataFrame(X_train_tfidf.toarray())
-    tfidf_df = tfidf_df.add_prefix('tf_idf_word_count_')
-    df = pd.concat([df, tfidf_df], axis=1)
+    word_count_df = pd.DataFrame(X_train_tfidf.toarray())
+    word_count_df = word_count_df.add_prefix('tf_idf_word_count_')
+    tfidf_df = word_count_df.add_prefix('tfidf_word_count_')
+    tfidf_feature_names = np.array(tfidf.get_feature_names_out())
+    print('tfidf_feature_names: {}'.format(tfidf_feature_names))
 
-    # Show confirmation statement
-    st.write(
-        'Feature {} has been TF-IDF encoded from {} reviews.'.format(feature, len(tfidf_df)))
+    webmddf = pd.concat([webmddf, tfidf_df], axis=1)
+    print(webmddf.head())
 
-    # Store new features in st.session_state
-    st.session_state['data'] = df
+    def get_top_tf_idf_words(response, feature_names, top_n=3):
+        sorted_nzs = np.argsort(response.data)[:-(top_n+1):-1]
+        return feature_names[response.indices[sorted_nzs]]
 
-    return df, count_vect, tfidf_transformer, tfidf_df
+    top_n=10
+    new_doc = webmddf['Reviews'][:top_n].to_numpy()
+    review_sample = tfidf.transform(new_doc)
+    # encoder[1] is wc_feature_names
+    review_top_words = get_top_tf_idf_words(review_sample, encoder[1], top_n=top_n)
 
-########################### fetch dataset ################################
-if df is not None:
+    st.markdown("### These are the top words in Reviews column")
+    st.write(review_top_words)
 
-    # Display original dataframe
-    st.markdown('You have uploaded the Medical Drug Reviews dataset. This provides user reviews on specific drugs along with related conditions, side effects, age, sex, and satisfaction rating reflecting overall patient satisfaction.')
+webmddf = webmddf[webmddf['Satisfaction'] != 3]
+webmddf.reset_index(drop=True, inplace=True)
+st.write(webmddf.shape)
 
-    st.markdown('View initial data with missing values or invalid inputs')
-    st.dataframe(df)
-
-    # Remove irrelevant features
-    df, data_cleaned = clean_data(df)
-    if (data_cleaned):
-        st.markdown('The dataset has been cleaned. Your welcome!')
-    
-    ############## Task 1: Remove Punctation
-    st.markdown('### Remove punctuation from features')
-    removed_p_features = st.multiselect(
-        'Select features to remove punctuation',
-        df.columns,
-    )
-    if (removed_p_features):
-        df = remove_punctuation(df, removed_p_features)
-        # Store new features in st.session_state
-        st.session_state['data'] = df
-        # Display updated dataframe
-        st.dataframe(df)
-        st.write('Punctuation was removed from {}'.format(removed_p_features))
-
-    # Use stopwords or 'engligh'
-    st.markdown('### Use stop words or not')
-    use_stop_words = st.multiselect(
-        'Use stop words?',
-        ['Use stop words', 'english'],
-    )
-    st.write('You selected {}'.format(use_stop_words))
-    
-    stop_words_list=[]
-    st.session_state['stopwords']='english'
-    if('Use stop words' in use_stop_words):
-        stopwords_file = st.file_uploader(
-            'Upload stop words file', type=['csv', 'txt'])
-        # Read file
-        if(stopwords_file):
-            stop_words_df = pd.read_csv(stopwords_file)
-            #stop_words = list(np.array(stop_words_df.to_numpy()).reshape(-1))
-            # Save stop words to session_state
-            st.session_state['stopwords'] = list(np.array(stop_words_df.to_numpy()).reshape(-1))
-            st.write('Stop words saved to session_state.')
-            st.table(stop_words_df.head())
-
-    if('english' in use_stop_words):
-        st.session_state['stopwords'] = 'english'
-        st.write('No stop words saved to session_state.')
-
-
-    # Inspect Reviews
-    st.markdown('### Inspect Reviews')
-
-    review_keyword = st.text_input(
-        "Enter a keyword to search in reviews",
-        key="review_keyword",
-    )
-
-    # Display dataset
-    #st.dataframe(df)
-
-    if (review_keyword):
-        displaying_review = display_review_keyword(df, review_keyword)
-        st.write('Summary of search results:')
-        st.write('Number of reviews: {}'.format(len(displaying_review)))
-        st.write(displaying_review)
-
-    # Handling Text and Categorical Attributes
-    st.markdown('### Handling Text and Categorical Attributes')
-    string_columns = list(df.select_dtypes(['object']).columns)
-    word_encoder = []
-
-    # Initialize word encoders in session state
-    st.session_state['word_encoder'] = word_encoder
-    st.session_state['count_vect'] = {'word_count':None, 'tfidf':None}
-    st.session_state['tfidf_transformer'] = None
-
-    word_count_col, tf_idf_col = st.columns(2)
-
-    wc_analyzer = 'word'
-    wc_n_ngram = (1,1)
-    n_gram = {'unigram': (1,1), 'bigram': (2,2), 'unigram-bigram': (1,2)}
-
-    ############## Task 2: Perform Word Count Encoding
-    with (word_count_col):
-        text_feature_select_int = st.selectbox(
-            'Select text features for encoding word count',
-            string_columns,
-        )
-        st.write('You selected feature: {}'.format(text_feature_select_int))
-
-        wc_analyzer = st.selectbox(
-            'Select the analyzer for encoding word count',
-            ['word', 'char', 'char_wb'],
-        )
-        st.write('You selected analyzer: {}'.format(wc_analyzer))
-
-        wc_n_ngram = st.selectbox(
-            'Select n-gram for encoding word count',
-            ['unigram', 'bigram', 'unigram-bigram'],
-        )
-        st.write('You selected n-gram: {}'.format(wc_n_ngram))
-
-        if (text_feature_select_int and st.button('Word Count Encoder')):
-            df, wc_count_vect, word_count_df = word_count_encoder(df, text_feature_select_int, analyzer=wc_analyzer, ngram_range=n_gram[wc_n_ngram], stop_words=st.session_state['stopwords'])
-            word_encoder.append('Word Count')
-            st.session_state['word_encoder'] = word_encoder
-            st.session_state['count_vect']['word_count'] = wc_count_vect
-            st.session_state['word_count_df']=word_count_df
-
-            if('tfidf_word_count_df' in st.session_state):
-                tfidf_word_count_df = st.session_state['tfidf_word_count_df']
-                df = pd.concat([df, word_count_df, tfidf_word_count_df], axis=1)
-                # Store new features in st.session_state
-                st.session_state['data'] = df
-            else:
-                df = pd.concat([df, word_count_df], axis=1)
-                # Store new features in st.session_state
-                st.session_state['data'] = df
-
-    ############## Task 3: Perform TF-IDF Encoding
-    with (tf_idf_col):
-        text_feature_select_onehot = st.selectbox(
-            'Select text features for encoding TF-IDF',
-            string_columns,
-        )
-        st.write('You selected feature: {}'.format(text_feature_select_onehot))
-
-        tfidf_analyzer = st.selectbox(
-            'Select the analyzer for encoding tfidf count',
-            ['word', 'char', 'char_wb'],
-        )
-        st.write('You selected analyzer: {}'.format(tfidf_analyzer))
-
-        tfidf_n_ngram = st.selectbox(
-            'Select n-gram for encoding tfidf count',
-            ['unigram', 'bigram', 'unigram-bigram'],
-        )
-        st.write('You selected n-gram: {}'.format(tfidf_n_ngram))
-
-        if (text_feature_select_onehot and st.button('TF-IDF Encoder')):
-            df, tfidf_count_vect, tfidf_transformer, tfidf_word_count_df = tf_idf_encoder(df, text_feature_select_onehot, analyzer=tfidf_analyzer, ngram_range=n_gram[tfidf_n_ngram], stop_words=st.session_state['stopwords'])
-            word_encoder.append('TF-IDF')
-            st.session_state['word_encoder'] = word_encoder
-            st.session_state['count_vect']['tfidf'] = tfidf_count_vect
-            st.session_state['transformer'] = tfidf_transformer
-            st.session_state['tfidf_word_count_df']=tfidf_word_count_df
-
-            if('word_count_df' in st.session_state):
-                word_count_df = st.session_state['word_count_df']
-                df = pd.concat([df, word_count_df, tfidf_word_count_df], axis=1)
-                # Store new features in st.session_state
-                st.session_state['data'] = df
-            else:
-                df = pd.concat([df, tfidf_word_count_df], axis=1)
-                # Store new features in st.session_state
-                st.session_state['data'] = df
-
-    # Display dataset
-    #st.dataframe(df)
-    
-    # Save dataset in session_state
-    st.session_state['data'] = df
-
+st.session_state['data'] = webmddf
