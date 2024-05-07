@@ -13,9 +13,10 @@ webmddf = st.session_state['data']
 
 webmddf = webmddf[webmddf['Satisfaction'] != 3]
 webmddf.reset_index(drop=True, inplace=True)
-st.write(webmddf.shape)
+st.write("The shape of the dataframe is " + str(webmddf.shape))
 
 webmddf['sentiment'] = webmddf['Satisfaction'].apply(lambda r: +1 if r > 3 else -1)
+st.markdown("### View data")
 st.write(webmddf.head())
 
 st.markdown("### View number of positive and negative reviews")
@@ -186,18 +187,18 @@ st.markdown("### Number of positive/negative weights")
 st.write("Number of positive weights: %s " % num_positive_weights)
 st.write("Number of negative weights: %s " % num_negative_weights)
 
-def get_classification_accuracy(prediction_labels, true_labels):    
-    # Compute the number of correctly classified examples
-    num_correct = np.sum(prediction_labels == true_labels)
+# def get_classification_accuracy(prediction_labels, true_labels):    
+#     # Compute the number of correctly classified examples
+#     num_correct = np.sum(prediction_labels == true_labels)
 
-    # Then compute accuracy by dividing num_correct by total number of examples
-    accuracy = num_correct / len(true_labels)
-    return accuracy
+#     # Then compute accuracy by dividing num_correct by total number of examples
+#     accuracy = num_correct / len(true_labels)
+#     return accuracy
 
-accuracy = get_classification_accuracy(predict(X_train_sentiment.to_numpy(), sentiment_model_weights, sentiment_model_bias), 
-                                       np.ravel(y_train))
-st.markdown("### Accuracy")
-st.write(accuracy)
+# accuracy = get_classification_accuracy(predict(X_train_sentiment.to_numpy(), sentiment_model_weights, sentiment_model_bias), 
+#                                        np.ravel(y_train))
+# st.markdown("### Accuracy")
+# st.write(accuracy)
 
 def plot_series(data, x_title, y_title, para1, para2, legend_label='iteration '):
     colors = mcolors.TABLEAU_COLORS
@@ -220,17 +221,19 @@ def plot_series(data, x_title, y_title, para1, para2, legend_label='iteration ')
     st.pyplot(plt.show())
 
 ####### Commented this out because of time #######
-# weights_list=[]
-# likelihood_history = []
-# for lr in range(1,50,1):
-#     learning_rate=lr/100000
-#     weights, bias, log_lik = fit(X_train_sentiment.to_numpy(), np.ravel(y_train), num_iterations, learning_rate)
-#     likelihood_history.append(log_lik)
-# st.markdown("### Training iteration")
-# if (st.button('Train iterations Model')):
-#     plot_series(likelihood_history, 'Training Iteration', 'Log Likelihood', 0, 10, legend_label='lr-')
+weights_list=[]
+likelihood_history = []
+for lr in range(1,50,1):
+    learning_rate=lr/100000
+    weights, bias, log_lik = fit(X_train_sentiment.to_numpy(), np.ravel(y_train), num_iterations, learning_rate)
+    likelihood_history.append(log_lik)
+st.markdown("### Training iteration")
+if (st.button('Train iterations Model')):
+    plot_series(likelihood_history, 'Training Iteration', 'Log Likelihood', 0, 10, legend_label='lr-')
 
 st.session_state['X_train'] = X_train
 st.session_state['X_test'] = X_test
 st.session_state['y_train'] = y_train
 st.session_state['y_test'] = y_test
+
+st.markdown("Click **Test Model** to test the model.")

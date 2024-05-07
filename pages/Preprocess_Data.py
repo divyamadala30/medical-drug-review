@@ -7,6 +7,10 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 import string
 import plotly.express as px
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+
+
 
 st.markdown('# Explore & Preprocess Dataset')
 
@@ -90,15 +94,15 @@ if ngram_range_selection == "unigram & bigram":
 
 st.session_state['ngram_range'] = ngram_range
 
-# stop words
-# stop_words = st.selectbox(
-#             'Select stop words',
-#             ["stop_words", "english"])
-# if stop_words == "english":
-#     st.session_state['stop_words'] = stop_words
-# else:
-#     st.session_state['stop_words'] = stop_words_list
-stop_words = "english"
+#stop words
+stop_words = st.selectbox(
+            'Select stop words',
+            ["stop_words", "english"])
+if stop_words == "english":
+    st.session_state['stop_words'] = stop_words
+else:
+    st.session_state['stop_words'] = stop_words_list
+#stop_words = "english"
 st.session_state['stop_words'] = stop_words
 
 
@@ -171,17 +175,28 @@ if encoder is not None:
         sorted_nzs = np.argsort(response.data)[:-(top_n+1):-1]
         return feature_names[response.indices[sorted_nzs]]
 
-    top_n=10
+    top_n=50
     new_doc = webmddf['Reviews'][:top_n].to_numpy()
     review_sample = tfidf.transform(new_doc)
     # encoder[1] is wc_feature_names
     review_top_words = get_top_tf_idf_words(review_sample, encoder[1], top_n=top_n)
 
     st.markdown("### These are the top words in Reviews column")
-    st.write(review_top_words)
+    #st.write(review_top_words)
+    wordcloud = WordCloud().generate(str(review_top_words))
+    st.set_option('deprecation.showPyplotGlobalUse', False)
+
+    # Display the generated image:
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis("off")
+    plt.show()
+    st.pyplot()
 
 webmddf = webmddf[webmddf['Satisfaction'] != 3]
 webmddf.reset_index(drop=True, inplace=True)
-st.write(webmddf.shape)
+st.write("The shape of the dataframe is " + str(webmddf.shape))
+
 
 st.session_state['data'] = webmddf
+
+st.markdown("Click **Train Model** to train the model.")
