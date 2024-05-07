@@ -1,4 +1,4 @@
-from pages.Train_Model import predict_probability, predict, fit, get_classification_accuracy, train_test_split
+from pages.Train_Model import predict_probability, predict, fit, train_test_split
 import streamlit as st                  
 import numpy as np    
 from sklearn.metrics import confusion_matrix
@@ -63,6 +63,13 @@ st.markdown("### Most negative reviews")
 st.write(most_negative_reviews)
 
 
+def get_classification_accuracy(prediction_labels, true_labels):    
+    # Compute the number of correctly classified examples
+    num_correct = np.sum(prediction_labels == true_labels)
+
+    # Then compute accuracy by dividing num_correct by total number of examples
+    accuracy = num_correct / len(true_labels)
+    return accuracy
 accuracy = get_classification_accuracy(predict(X_test_sentiment.to_numpy(), sentiment_model_weights, sentiment_model_bias), 
                                        np.ravel(y_test))
 st.markdown("### Accuracy")
